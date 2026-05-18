@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Generatore XML Offerta Retail</title>
+  <link rel="stylesheet" href="./xml_form_builder.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="hero">
+      <div class="hero-copy">
+        <h1>XML Generator</h1>
+        <h2>Portale Offerte</h2>
+        <p class="subtitle">
+          <!--Compila i tag del capitolo 7.1, evidenzia i campi obbligatori e genera un XML
+          con solo i nodi utili. I campi vuoti opzionali vengono omessi.-->
+        </p>
+      </div>
+      <div class="hero-card">
+        <p class="white"><strong>Uso rapido</strong></p>
+        <p class="white">1. Importa un XML esistente oppure compila la maschera.</p>
+        <p class="white">2. Premi <strong>Genera XML</strong>.</p>
+        <p class="white">3. Scarica lo ZIP finale.</p>
+      </div>
+    </header>
+
+    <section class="toolbar">
+      <div class="filename-settings" aria-label="Impostazioni nome file">
+        <label class="filename-field">
+          <span>Azione file</span>
+          <select id="file-action">
+            <option value="INSERIMENTO">INSERIMENTO</option>
+            <option value="AGGIORNAMENTO">AGGIORNAMENTO</option>
+          </select>
+        </label>
+        <label class="filename-field">
+          <span>Versione formato</span>
+          <select id="file-version">
+            <option value="01">01 - offerte standard</option>
+            <option value="02">02 - offerte non simulabili</option>
+          </select>
+        </label>
+        <label class="filename-field">
+          <span>Descrizione XML da nome offerta</span>
+          <input id="file-description" type="text" maxlength="25" pattern="[A-Za-z0-9]{1,25}" placeholder="Automatica" readonly>
+        </label>
+        <label class="filename-field">
+          <span>Descrizione ZIP</span>
+          <input id="zip-description" type="text" placeholder="Uguale alla descrizione XML" readonly>
+        </label>
+      </div>
+
+      <div class="toolbar-actions" aria-label="Azioni XML">
+        <label class="file-chip">
+          <span>Importa XML</span>
+          <input id="xml-import" type="file" accept=".xml">
+        </label>
+        <button id="btn-generate" type="button" class="primary">Genera XML</button>
+        <button id="btn-download" type="button" class="primary">Scarica ZIP</button>
+        <button id="btn-reset" type="button" class="primary">Svuota maschera</button>
+      </div>
+    </section>
+
+    <section id="messages" class="messages" aria-live="polite"></section>
+
+    <main class="workspace">
+      <section class="form-panel">
+        <div class="panel-head">
+          <h2>Inserimento Dati</h2>
+          <p>I campi segnati in rosso sono obbligatori o condizionalmente obbligatori.</p>
+        </div>
+        <form id="builder-form"></form>
+      </section>
+
+      <aside class="output-panel">
+        <div class="panel-head">
+          <h2>XML generato</h2>
+          <p>Vengono inclusi solo i tag valorizzati o richiesti dalla logica impostata.</p>
+        </div>
+        <textarea id="xml-output" spellcheck="false" placeholder="Qui comparira l'XML generato..."></textarea>
+      </aside>
+    </main>
+  </div>
+
+  <script src="./xml_form_builder.js"></script>
+</body>
+</html>
