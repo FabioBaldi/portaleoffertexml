@@ -13,9 +13,17 @@
   const downloadBtn = document.getElementById("btn-download");
   const resetBtn = document.getElementById("btn-reset");
   const messagesEl = document.getElementById("messages");
-  const paymentGateEl = document.getElementById("payment-gate");
-  const paymentGateStatusEl = document.getElementById("payment-gate-status");
+  const checkoutPanelEl = document.getElementById("checkout-panel");
+  const checkoutHeadingEl = document.getElementById("checkout-heading");
+  const checkoutTextEl = document.getElementById("checkout-text");
+  const checkoutStatusEl = document.getElementById("checkout-status");
   const startCheckoutBtn = document.getElementById("btn-start-checkout");
+  const checkoutModalEl = document.getElementById("checkout-modal");
+  const checkoutModalHeadingEl = document.getElementById("checkout-modal-heading");
+  const checkoutModalTextEl = document.getElementById("checkout-modal-text");
+  const checkoutModalStatusEl = document.getElementById("checkout-modal-status");
+  const startCheckoutModalBtn = document.getElementById("btn-start-checkout-modal");
+  const closeCheckoutModalBtn = document.getElementById("checkout-modal-close");
 
   const option = (value, label) => ({ value, label });
   const FILE_DESCRIPTION_PATTERN = /^[A-Za-z0-9]{1,25}$/;
@@ -28,8 +36,11 @@
   };
   const FORMAT_VERSIONS = new Set(["01", "02"]);
   const PAYMENT_TOKEN_KEY = "xml_unlock_token";
+  const PAYMENT_DRAFT_KEY = "xml_checkout_draft";
+  const PAYMENT_AMOUNT_LABEL = "10\u20AC";
 
   let unlockToken = sessionStorage.getItem(PAYMENT_TOKEN_KEY) || "";
+  let zipReady = false;
 
   const MONTH_OPTIONS = [
     option("01", "01 - Gennaio"),
@@ -1510,6 +1521,7 @@
       .join("");
 
     if (errors.length) {
+      outputEl.value = "";
       showMessage("error", "Controlla i campi obbligatori prima di generare l'XML.", errors);
       return "";
     }
@@ -1645,53 +1657,239 @@
     messagesEl.innerHTML = "";
   }
 
-  function setPaymentGateStatus(text = "") {
-    if (paymentGateStatusEl) {
-      paymentGateStatusEl.textContent = text;
+  function setCheckoutStatus(text = "", tone = "muted") {
+    if (!checkoutStatusEl) {
+      return;
     }
-  }
 
-  function setControlsLocked(locked) {
-    const controls = [
-      importEl,
-      fileActionEl,
-      fileVersionEl,
-      generateBtn,
-      downloadBtn,
-      resetBtn,
-      ...formEl.querySelectorAll("input, textarea, select, button"),
-    ];
+    checkoutStatusEl.textContent = text;
+    if (tone) {
+      checkoutStatusEl.dataset.tone = tone;
+    } else {
+      delete checkoutStatusEl.dataset.tone;
+    }
 
-    controls.forEach((control) => {
-      if (!control || control === fileDescriptionEl || control === zipDescriptionEl) {
-        return;
+    if (checkoutModalStatusEl) {
+      checkoutModalStatusEl.textContent = text;
+      if (tone) {
+        checkoutModalStatusEl.dataset.tone = tone;
+      } else {
+        delete checkoutModalStatusEl.dataset.tone;
       }
-      control.disabled = locked;
-    });
+    }
   }
 
-  function applyPaywallState() {
+  function getCheckoutUiState() {
     const isUnlocked = Boolean(unlockToken);
-    setControlsLocked(!isUnlocked);
-    if (paymentGateEl) {
-      paymentGateEl.classList.toggle("is-visible", !isUnlocked);
+    let state = "idle";
+    let heading = "Ultimo passaggio";
+    let text = "Compila la maschera e premi Genera ZIP per preparare il file finale. Il pagamento viene richiesto solo al momento del download.";
+    let buttonText = `Paga ${PAYMENT_AMOUNT_LABEL} per scaricare il file`;
+    let buttonDisabled = true;
+    let statusText = "Il pulsante finale si attiva solo dopo la generazione del ZIP.";
+    let statusTone = "muted";
+
+    if (zipReady && isUnlocked) {
+      state = "unlocked";
+      heading = "Pagamento confermato";
+      text = "Il file e pronto. Usa il pulsante qui sotto per scaricare un solo ZIP con il pagamento gia registrato.";
+      buttonText = "Scarica ZIP ora";
+      buttonDisabled = false;
+      statusText = "Download sbloccato per un solo utilizzo.";
+      statusTone = "success";
+    } else if (zipReady) {
+      state = "ready";
+      heading = "ZIP pronto al pagamento";
+      text = `Il file e pronto. Completa il pagamento di ${PAYMENT_AMOUNT_LABEL} per scaricare lo ZIP finale.`;
+      buttonText = `Paga ${PAYMENT_AMOUNT_LABEL} per scaricare il file`;
+      buttonDisabled = false;
+      statusText = "Ultimo passaggio: pagamento Stripe prima del download.";
+      statusTone = "accent";
+    } else if (isUnlocked) {
+      state = "unlocked";
+      heading = "Pagamento confermato";
+      text = "Hai gia un utilizzo disponibile. Premi Genera ZIP per preparare il file finale e poi scaricarlo.";
+      buttonText = "Scarica ZIP ora";
+      buttonDisabled = true;
+      statusText = "Pagamento registrato. Genera prima il ZIP finale.";
+      statusTone = "success";
     }
-    if (isUnlocked) {
-      setPaymentGateStatus("");
+
+    return {
+      state,
+      heading,
+      text,
+      buttonText,
+      buttonDisabled,
+      statusText,
+      statusTone,
+    };
+  }
+
+  function applyCheckoutUi(viewState) {
+    if (checkoutPanelEl) {
+      checkoutPanelEl.dataset.state = viewState.state;
+    }
+    if (checkoutHeadingEl) {
+      checkoutHeadingEl.textContent = viewState.heading;
+    }
+    if (checkoutTextEl) {
+      checkoutTextEl.textContent = viewState.text;
+    }
+    if (startCheckoutBtn) {
+      startCheckoutBtn.textContent = viewState.buttonText;
+      startCheckoutBtn.disabled = viewState.buttonDisabled;
+    }
+    if (checkoutModalEl) {
+      checkoutModalEl.dataset.state = viewState.state;
+    }
+    if (checkoutModalHeadingEl) {
+      checkoutModalHeadingEl.textContent = viewState.heading;
+    }
+    if (checkoutModalTextEl) {
+      checkoutModalTextEl.textContent = viewState.text;
+    }
+    if (startCheckoutModalBtn) {
+      startCheckoutModalBtn.textContent = viewState.buttonText;
+      startCheckoutModalBtn.disabled = viewState.buttonDisabled;
+    }
+  }
+
+  function openCheckoutModal() {
+    if (!checkoutModalEl) {
+      return;
+    }
+
+    checkoutModalEl.classList.add("is-open");
+    checkoutModalEl.setAttribute("aria-hidden", "false");
+    document.body.classList.add("modal-open");
+    window.setTimeout(() => {
+      if (startCheckoutModalBtn && !startCheckoutModalBtn.disabled) {
+        startCheckoutModalBtn.focus();
+      } else if (closeCheckoutModalBtn) {
+        closeCheckoutModalBtn.focus();
+      }
+    }, 30);
+  }
+
+  function closeCheckoutModal() {
+    if (!checkoutModalEl) {
+      return;
+    }
+
+    checkoutModalEl.classList.remove("is-open");
+    checkoutModalEl.setAttribute("aria-hidden", "true");
+    document.body.classList.remove("modal-open");
+  }
+
+  function updateCheckoutPanel({ preserveStatus = false } = {}) {
+    if (!checkoutPanelEl || !startCheckoutBtn) {
+      return;
+    }
+
+    const viewState = getCheckoutUiState();
+    applyCheckoutUi(viewState);
+
+    if (!preserveStatus) {
+      setCheckoutStatus(viewState.statusText, viewState.statusTone);
+    }
+  }
+
+  function clearCheckoutDraft() {
+    sessionStorage.removeItem(PAYMENT_DRAFT_KEY);
+  }
+
+  function saveCheckoutDraft(xml) {
+    const trimmedXml = String(xml || "").trim();
+    if (!trimmedXml) {
+      clearCheckoutDraft();
+      return;
+    }
+
+    sessionStorage.setItem(
+      PAYMENT_DRAFT_KEY,
+      JSON.stringify({
+        xml: trimmedXml,
+        fileAction: String(fileActionEl.value || "").trim().toUpperCase(),
+        fileVersion: String(fileVersionEl.value || "").trim(),
+      })
+    );
+  }
+
+  function restoreCheckoutDraft() {
+    const raw = sessionStorage.getItem(PAYMENT_DRAFT_KEY);
+    if (!raw) {
+      return false;
+    }
+
+    try {
+      const draft = JSON.parse(raw);
+      const xml = typeof draft.xml === "string" ? draft.xml.trim() : "";
+      if (!xml) {
+        clearCheckoutDraft();
+        return false;
+      }
+
+      importXml(xml, "", { prepared: true, silent: true, keepOutput: true });
+      if (FILE_ACTIONS.has(draft.fileAction)) {
+        fileActionEl.value = draft.fileAction;
+      }
+      if (FORMAT_VERSIONS.has(draft.fileVersion)) {
+        fileVersionEl.value = draft.fileVersion;
+      }
+      updateFileDescriptionPreview();
+      setCheckoutStatus("Bozza finale ripristinata. Puoi continuare dal passaggio di pagamento o download.", "muted");
+      return true;
+    } catch {
+      clearCheckoutDraft();
+      return false;
+    }
+  }
+
+  function invalidatePreparedZip(reason = "") {
+    const hadPreparedZip = zipReady;
+    if (!hadPreparedZip) {
+      return;
+    }
+
+    zipReady = false;
+    clearCheckoutDraft();
+    closeCheckoutModal();
+    updateCheckoutPanel({ preserveStatus: Boolean(reason) });
+    if (reason) {
+      setCheckoutStatus(reason, "muted");
+    }
+  }
+
+  function scrollCheckoutPanelIntoView() {
+    if (checkoutPanelEl) {
+      checkoutPanelEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
   }
 
   function clearUnlockToken() {
     unlockToken = "";
     sessionStorage.removeItem(PAYMENT_TOKEN_KEY);
-    applyPaywallState();
+    updateCheckoutPanel();
   }
 
   async function startCheckout() {
+    if (unlockToken) {
+      await downloadZip();
+      return;
+    }
+
+    if (!zipReady) {
+      showMessage("error", "Premi prima Genera ZIP per arrivare al pagamento finale.");
+      updateCheckoutPanel();
+      return;
+    }
+
     startCheckoutBtn.disabled = true;
-    setPaymentGateStatus("Reindirizzamento a Stripe in corso...");
+    setCheckoutStatus("Reindirizzamento a Stripe in corso...", "accent");
 
     try {
+      saveCheckoutDraft(outputEl.value);
       const response = await fetch("./api/create-checkout-session", {
         method: "POST",
         headers: {
@@ -1707,8 +1905,8 @@
 
       window.location.href = payload.url;
     } catch (error) {
-      setPaymentGateStatus(error.message || "Impossibile avviare il pagamento.");
-      startCheckoutBtn.disabled = false;
+      setCheckoutStatus(error.message || "Impossibile avviare il pagamento.", "accent");
+      updateCheckoutPanel({ preserveStatus: true });
     }
   }
 
@@ -1735,16 +1933,21 @@
 
   function resetForm() {
     buildForm();
+    zipReady = false;
+    clearCheckoutDraft();
+    closeCheckoutModal();
     fileActionEl.value = "INSERIMENTO";
     fileVersionEl.value = "01";
     fileDescriptionEl.value = "";
     zipDescriptionEl.value = "";
     outputEl.value = "";
     clearMessage();
-    applyPaywallState();
+    updateCheckoutPanel();
   }
 
-  function importXml(text, fileName = "") {
+  function importXml(text, fileName = "", options = {}) {
+    const { prepared = false, silent = false, keepOutput = false } = options;
+
     try {
       const parser = new DOMParser();
       const xmlDoc = parser.parseFromString(text, "application/xml");
@@ -1764,10 +1967,19 @@
         populateNode(node, formNode, root);
       });
       populateFileNameFields(fileName);
+      zipReady = prepared;
+      if (!prepared) {
+        clearCheckoutDraft();
+      }
       updateFileDescriptionPreview();
-      outputEl.value = "";
-      showMessage("success", "XML importato nella maschera.");
-      applyPaywallState();
+      outputEl.value = keepOutput ? String(text || "").trim() : "";
+      if (!prepared) {
+        closeCheckoutModal();
+      }
+      if (!silent) {
+        showMessage("success", "XML importato nella maschera.");
+      }
+      updateCheckoutPanel();
     } catch (error) {
       showMessage("error", error.message);
     }
@@ -1865,15 +2077,50 @@
     return getDirectXmlChildren(parent, localName)[0] || null;
   }
 
-  async function downloadZip() {
+  function prepareZipForDownload() {
     const xml = generateXml().trim();
     if (!xml) {
+      zipReady = false;
+      clearCheckoutDraft();
+      updateCheckoutPanel();
+      return;
+    }
+
+    zipReady = true;
+    outputEl.value = xml;
+    saveCheckoutDraft(xml);
+    updateCheckoutPanel();
+
+    if (unlockToken) {
+      showMessage("success", "ZIP pronto. Usa il pulsante in fondo per scaricare il file.");
+      setCheckoutStatus("Pagamento gia registrato. Ora puoi scaricare il file finale.", "success");
+    } else {
+      showMessage("success", `ZIP pronto. Completa il pagamento di ${PAYMENT_AMOUNT_LABEL} con il pulsante in fondo per scaricare il file.`);
+      setCheckoutStatus("ZIP pronto per il pagamento finale su Stripe.", "accent");
+    }
+
+    updateCheckoutPanel({ preserveStatus: true });
+    openCheckoutModal();
+  }
+
+  async function downloadZip() {
+    if (!zipReady) {
+      showMessage("error", "Premi prima Genera ZIP per preparare il file finale.");
+      updateCheckoutPanel();
+      return;
+    }
+
+    const xml = generateXml().trim();
+    if (!xml) {
+      zipReady = false;
+      clearCheckoutDraft();
+      updateCheckoutPanel();
       return;
     }
 
     if (!unlockToken) {
-      showMessage("error", "Completa il pagamento prima di scaricare lo ZIP.");
-      applyPaywallState();
+      showMessage("error", `Completa il pagamento di ${PAYMENT_AMOUNT_LABEL} prima di scaricare lo ZIP.`);
+      updateCheckoutPanel();
       return;
     }
 
@@ -1897,7 +2144,10 @@
     link.remove();
     URL.revokeObjectURL(url);
     clearUnlockToken();
+    closeCheckoutModal();
     showMessage("success", `ZIP generato: ${names.zipFileName}`);
+    setCheckoutStatus("Download completato. Per un nuovo ZIP sara richiesto un nuovo pagamento.", "muted");
+    updateCheckoutPanel({ preserveStatus: true });
   }
 
   function buildDownloadNames(state) {
@@ -2068,22 +2318,56 @@
     event.target.value = "";
   });
 
-  formEl.addEventListener("input", updateFileDescriptionPreview);
-  formEl.addEventListener("change", updateFileDescriptionPreview);
-  generateBtn.addEventListener("click", generateXml);
-  downloadBtn.addEventListener("click", downloadZip);
+  formEl.addEventListener("input", () => {
+    updateFileDescriptionPreview();
+    invalidatePreparedZip("Hai modificato la maschera. Premi di nuovo Genera ZIP per aggiornare il file finale.");
+  });
+  formEl.addEventListener("change", () => {
+    updateFileDescriptionPreview();
+    invalidatePreparedZip("Hai modificato la maschera. Premi di nuovo Genera ZIP per aggiornare il file finale.");
+  });
+  generateBtn.addEventListener("click", () => {
+    generateXml();
+    updateCheckoutPanel();
+  });
+  downloadBtn.addEventListener("click", prepareZipForDownload);
   resetBtn.addEventListener("click", resetForm);
   startCheckoutBtn.addEventListener("click", startCheckout);
+  if (startCheckoutModalBtn) {
+    startCheckoutModalBtn.addEventListener("click", startCheckout);
+  }
+  if (closeCheckoutModalBtn) {
+    closeCheckoutModalBtn.addEventListener("click", closeCheckoutModal);
+  }
+  if (checkoutModalEl) {
+    checkoutModalEl.addEventListener("click", (event) => {
+      if (event.target instanceof HTMLElement && event.target.dataset.closeCheckoutModal === "true") {
+        closeCheckoutModal();
+      }
+    });
+  }
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      closeCheckoutModal();
+    }
+  });
 
   buildForm();
+  restoreCheckoutDraft();
+  updateFileDescriptionPreview();
   const paymentParams = new URLSearchParams(window.location.search);
   if (paymentParams.get("payment") === "success") {
-    showMessage("success", "Pagamento confermato. Ora puoi scaricare un solo ZIP.");
+    showMessage("success", "Pagamento confermato. Il pulsante in fondo ora ti permette di scaricare il ZIP.");
+    setCheckoutStatus("Pagamento confermato. Scarica ora il file finale.", "success");
     window.history.replaceState({}, document.title, window.location.pathname);
   }
   if (paymentParams.get("payment") === "cancelled") {
-    showMessage("error", "Pagamento annullato. Completa il checkout per usare il portale.");
+    showMessage("error", "Pagamento annullato. Quando vuoi, usa il pulsante in fondo per riprovare.");
+    setCheckoutStatus("Pagamento annullato. Il file resta pronto per un nuovo tentativo.", "accent");
     window.history.replaceState({}, document.title, window.location.pathname);
   }
-  applyPaywallState();
+  updateCheckoutPanel({ preserveStatus: paymentParams.has("payment") });
+  if (paymentParams.get("payment") === "success" || paymentParams.get("payment") === "cancelled") {
+    openCheckoutModal();
+  }
 })();

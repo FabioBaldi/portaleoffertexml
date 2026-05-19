@@ -79,22 +79,37 @@
           <p>Vengono inclusi solo i tag valorizzati o richiesti dalla logica impostata.</p>
         </div>
         <textarea id="xml-output" spellcheck="false" placeholder="Qui comparira l'XML generato..."></textarea>
+        <section id="checkout-panel" class="checkout-panel" data-state="idle" aria-live="polite">
+          <div class="checkout-panel-copy">
+            <p class="checkout-panel-eyebrow">Download finale</p>
+            <h3 id="checkout-heading">Ultimo passaggio</h3>
+            <p id="checkout-text">
+              Compila la maschera e premi Genera ZIP per preparare il file finale.
+              Il pagamento viene richiesto solo al momento del download.
+            </p>
+          </div>
+          <div class="checkout-panel-actions">
+            <button id="btn-start-checkout" type="button" class="primary" disabled>Paga 10&#8364; per scaricare il file</button>
+            <p id="checkout-status" class="checkout-panel-status"></p>
+          </div>
+        </section>
       </aside>
     </main>
   </div>
 
-  <section id="payment-gate" class="payment-gate" aria-live="polite">
-    <div class="payment-gate-card">
-      <p class="payment-gate-eyebrow">Accesso protetto</p>
-      <h2>Sblocca un singolo utilizzo</h2>
-      <p>
-        Per usare il portale devi completare un pagamento Stripe. Un pagamento sblocca
-        un solo download ZIP.
+  <div id="checkout-modal" class="checkout-modal" aria-hidden="true">
+    <div class="checkout-modal-backdrop" data-close-checkout-modal="true"></div>
+    <section class="checkout-modal-card" role="dialog" aria-modal="true" aria-labelledby="checkout-modal-heading">
+      <button id="checkout-modal-close" type="button" class="checkout-modal-close" aria-label="Chiudi finestra pagamento">&times;</button>
+      <p class="checkout-panel-eyebrow">Download finale</p>
+      <h3 id="checkout-modal-heading">Ultimo passaggio</h3>
+      <p id="checkout-modal-text" class="checkout-modal-text">
+        Compila la maschera e premi Genera ZIP per preparare il file finale.
       </p>
-      <button id="btn-start-checkout" type="button" class="primary">Paga e sblocca utilizzo</button>
-      <p id="payment-gate-status" class="payment-gate-status"></p>
-    </div>
-  </section>
+      <p id="checkout-modal-status" class="checkout-panel-status"></p>
+      <button id="btn-start-checkout-modal" type="button" class="primary" disabled>Paga 10&#8364; per scaricare il file</button>
+    </section>
+  </div>
 
   <script src="./xml_form_builder.js"></script>
   <script src="./checkout_final_step.js"></script>
