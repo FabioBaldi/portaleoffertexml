@@ -83,6 +83,19 @@
     </main>
   </div>
 
+  <section id="payment-gate" class="payment-gate" aria-live="polite">
+    <div class="payment-gate-card">
+      <p class="payment-gate-eyebrow">Accesso protetto</p>
+      <h2>Sblocca un singolo utilizzo</h2>
+      <p>
+        Per usare il portale devi completare un pagamento Stripe. Un pagamento sblocca
+        un solo download ZIP.
+      </p>
+      <button id="btn-start-checkout" type="button" class="primary">Paga e sblocca utilizzo</button>
+      <p id="payment-gate-status" class="payment-gate-status"></p>
+    </div>
+  </section>
+
   <script src="./xml_form_builder.js"></script>
 </body>
 </html>

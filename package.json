@@ -1,0 +1,13 @@
+{
+  "name": "portaleoffertexml",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Portale offerte XML con paywall Stripe e backend Supabase.",
+  "scripts": {
+    "check": "node --check xml_form_builder.js && node --check api/create-checkout-session.mjs && node --check api/payment-status.mjs && node --check api/consume-access.mjs && node --check api/stripe-webhook.mjs"
+  },
+  "dependencies": {
+    "pg": "latest",
+    "stripe": "latest"
+  }
+}

@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Conferma pagamento</title>
+  <style>
+    :root {
+      --bg: #eef3f8;
+      --panel: #ffffff;
+      --ink: #10263c;
+      --muted: #5d738a;
+      --accent: #004a98;
+      --line: #d4deea;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      font-family: "Aptos", "Segoe UI", Arial, sans-serif;
+      background: linear-gradient(180deg, #f7f9fc 0%, var(--bg) 100%);
+      color: var(--ink);
+    }
+
+    .card {
+      width: min(560px, 100%);
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      padding: 28px;
+      box-shadow: 0 20px 48px rgba(15, 34, 56, 0.08);
+    }
+
+    h1 {
+      margin: 0 0 12px;
+      font-size: 2rem;
+    }
+
+    p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .status {
+      margin-top: 18px;
+      padding: 14px 16px;
+      border-radius: 16px;
+      background: #f4f7fb;
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .actions {
+      margin-top: 20px;
+    }
+
+    a {
+      color: var(--accent);
+      font-weight: 700;
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <h1>Pagamento in verifica</h1>
+    <p>Stiamo confermando il pagamento con Stripe. Al termine verrai reindirizzato al portale con l'utilizzo sbloccato.</p>
+    <div id="status" class="status">Attendo conferma del pagamento...</div>
+    <div class="actions">
+      <a href="./index.html">Torna al portale</a>
+    </div>
+  </main>
+
+  <script>
+    const TOKEN_KEY = "xml_unlock_token";
+    const statusEl = document.getElementById("status");
+    const params = new URLSearchParams(window.location.search);
+    const sessionId = params.get("session_id");
+
+    if (!sessionId) {
+      statusEl.textContent = "Sessione di pagamento mancante. Torna al portale e riprova.";
+    } else {
+      pollStatus(0);
+    }
+
+    async function pollStatus(attempt) {
+      try {
+        const response = await fetch(`./api/payment-status?session_id=${encodeURIComponent(sessionId)}`, {
+          cache: "no-store",
+        });
+        const payload = await response.json();
+
+        if (payload.unlocked && payload.accessToken) {
+          sessionStorage.setItem(TOKEN_KEY, payload.accessToken);
+          window.location.replace("./index.html?payment=success");
+          return;
+        }
+
+        if (payload.status === "consumed") {
+          statusEl.textContent = "Questo utilizzo risulta gia consumato.";
+          return;
+        }
+
+        if (payload.status === "expired" || payload.status === "failed") {
+          statusEl.textContent = "Il pagamento non e disponibile. Torna al portale e riprova.";
+          return;
+        }
+
+        if (attempt >= 14) {
+          statusEl.textContent = "La conferma richiede piu tempo del previsto. Riapri il portale tra qualche secondo.";
+          return;
+        }
+
+        statusEl.textContent = "Pagamento ricevuto, attendo conferma dal backend...";
+        window.setTimeout(() => pollStatus(attempt + 1), 2000);
+      } catch (error) {
+        statusEl.textContent = "Errore durante il controllo del pagamento. Riprova tra qualche secondo.";
+      }
+    }
+  </script>
+</body>
+</html>

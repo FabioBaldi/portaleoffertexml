@@ -1,3 +1,9 @@
+# Dependencies and local configuration
+node_modules/
+.env
+.env.*
+.vercel/
+
 # Generated outputs
 *.ZIP
 *.XML
@@ -12,5 +18,3 @@ All4-Schemi_v4.3/
 Documenti_PDC_TO1_TO2/
 EsempiXML_OfferteRetail_1/
 sito/
-.vercel
-.vercel

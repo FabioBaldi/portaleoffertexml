@@ -13,6 +13,9 @@
   const downloadBtn = document.getElementById("btn-download");
   const resetBtn = document.getElementById("btn-reset");
   const messagesEl = document.getElementById("messages");
+  const paymentGateEl = document.getElementById("payment-gate");
+  const paymentGateStatusEl = document.getElementById("payment-gate-status");
+  const startCheckoutBtn = document.getElementById("btn-start-checkout");
 
   const option = (value, label) => ({ value, label });
   const FILE_DESCRIPTION_PATTERN = /^[A-Za-z0-9]{1,25}$/;
@@ -24,6 +27,9 @@
     AGGIORNAMENTO: "0051",
   };
   const FORMAT_VERSIONS = new Set(["01", "02"]);
+  const PAYMENT_TOKEN_KEY = "xml_unlock_token";
+
+  let unlockToken = sessionStorage.getItem(PAYMENT_TOKEN_KEY) || "";
 
   const MONTH_OPTIONS = [
     option("01", "01 - Gennaio"),
@@ -1639,6 +1645,94 @@
     messagesEl.innerHTML = "";
   }
 
+  function setPaymentGateStatus(text = "") {
+    if (paymentGateStatusEl) {
+      paymentGateStatusEl.textContent = text;
+    }
+  }
+
+  function setControlsLocked(locked) {
+    const controls = [
+      importEl,
+      fileActionEl,
+      fileVersionEl,
+      generateBtn,
+      downloadBtn,
+      resetBtn,
+      ...formEl.querySelectorAll("input, textarea, select, button"),
+    ];
+
+    controls.forEach((control) => {
+      if (!control || control === fileDescriptionEl || control === zipDescriptionEl) {
+        return;
+      }
+      control.disabled = locked;
+    });
+  }
+
+  function applyPaywallState() {
+    const isUnlocked = Boolean(unlockToken);
+    setControlsLocked(!isUnlocked);
+    if (paymentGateEl) {
+      paymentGateEl.classList.toggle("is-visible", !isUnlocked);
+    }
+    if (isUnlocked) {
+      setPaymentGateStatus("");
+    }
+  }
+
+  function clearUnlockToken() {
+    unlockToken = "";
+    sessionStorage.removeItem(PAYMENT_TOKEN_KEY);
+    applyPaywallState();
+  }
+
+  async function startCheckout() {
+    startCheckoutBtn.disabled = true;
+    setPaymentGateStatus("Reindirizzamento a Stripe in corso...");
+
+    try {
+      const response = await fetch("./api/create-checkout-session", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({}),
+      });
+
+      const payload = await response.json();
+      if (!response.ok || !payload.url) {
+        throw new Error(payload.message || "Impossibile creare la sessione di pagamento.");
+      }
+
+      window.location.href = payload.url;
+    } catch (error) {
+      setPaymentGateStatus(error.message || "Impossibile avviare il pagamento.");
+      startCheckoutBtn.disabled = false;
+    }
+  }
+
+  async function consumeUnlockForDownload() {
+    const response = await fetch("./api/consume-access", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        accessToken: unlockToken,
+      }),
+    });
+
+    const payload = await response.json();
+    if (!response.ok) {
+      clearUnlockToken();
+      showMessage("error", payload.message || "Il pagamento non risulta piu disponibile.");
+      return false;
+    }
+
+    return true;
+  }
+
   function resetForm() {
     buildForm();
     fileActionEl.value = "INSERIMENTO";
@@ -1647,6 +1741,7 @@
     zipDescriptionEl.value = "";
     outputEl.value = "";
     clearMessage();
+    applyPaywallState();
   }
 
   function importXml(text, fileName = "") {
@@ -1672,6 +1767,7 @@
       updateFileDescriptionPreview();
       outputEl.value = "";
       showMessage("success", "XML importato nella maschera.");
+      applyPaywallState();
     } catch (error) {
       showMessage("error", error.message);
     }
@@ -1769,11 +1865,23 @@
     return getDirectXmlChildren(parent, localName)[0] || null;
   }
 
-  function downloadZip() {
+  async function downloadZip() {
     const xml = generateXml().trim();
     if (!xml) {
       return;
     }
+
+    if (!unlockToken) {
+      showMessage("error", "Completa il pagamento prima di scaricare lo ZIP.");
+      applyPaywallState();
+      return;
+    }
+
+    const allowed = await consumeUnlockForDownload();
+    if (!allowed) {
+      return;
+    }
+
     const state = collectState();
     const names = buildDownloadNames(state);
     if (!names) {
@@ -1788,6 +1896,7 @@
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
+    clearUnlockToken();
     showMessage("success", `ZIP generato: ${names.zipFileName}`);
   }
 
@@ -1964,6 +2073,17 @@
   generateBtn.addEventListener("click", generateXml);
   downloadBtn.addEventListener("click", downloadZip);
   resetBtn.addEventListener("click", resetForm);
+  startCheckoutBtn.addEventListener("click", startCheckout);
 
   buildForm();
+  const paymentParams = new URLSearchParams(window.location.search);
+  if (paymentParams.get("payment") === "success") {
+    showMessage("success", "Pagamento confermato. Ora puoi scaricare un solo ZIP.");
+    window.history.replaceState({}, document.title, window.location.pathname);
+  }
+  if (paymentParams.get("payment") === "cancelled") {
+    showMessage("error", "Pagamento annullato. Completa il checkout per usare il portale.");
+    window.history.replaceState({}, document.title, window.location.pathname);
+  }
+  applyPaywallState();
 })();
