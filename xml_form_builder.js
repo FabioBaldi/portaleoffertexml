@@ -1760,6 +1760,7 @@
       return;
     }
 
+    checkoutModalEl.hidden = false;
     checkoutModalEl.classList.add("is-open");
     checkoutModalEl.setAttribute("aria-hidden", "false");
     document.body.classList.add("modal-open");
@@ -1780,6 +1781,7 @@
     checkoutModalEl.classList.remove("is-open");
     checkoutModalEl.setAttribute("aria-hidden", "true");
     document.body.classList.remove("modal-open");
+    checkoutModalEl.hidden = true;
   }
 
   function updateCheckoutPanel({ preserveStatus = false } = {}) {
